@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 jobs:
-  goaction:
+  run-ebpf-demo:
     runs-on: ubuntu-latest
     steps:
       # Ubuntu 24.04 is not supporting BPF-LSM!
@@ -30,6 +30,7 @@ jobs:
     - name: Build a new container
       uses: docker/build-push-action@v6
       with:
+        context: .
         tags: dorkamotorka/ebpf-gh-action:latest
         push: true
 
