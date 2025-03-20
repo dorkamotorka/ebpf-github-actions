@@ -7,13 +7,34 @@ import (
 	"time"
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"net/http"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/cilium/ebpf/ringbuf"
 )
+
+type HealthResponse struct {
+        Status  string `json:"status"`
+        Message string `json:"message"`
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	// Set response type to JSON
+	w.Header().Set("Content-Type", "application/json")
+
+	// Create the health response
+	response := HealthResponse{
+		Status:  "ok",
+		Message: "Service is healthy",
+	}
+
+	// Send the JSON response
+	json.NewEncoder(w).Encode(response)
+}
 
 // Define the event structure matching the eBPF struct
 type event struct {
@@ -69,6 +90,17 @@ func main() {
 			}
 			filename := strings.TrimRight(string(e.Filename[:]), "\x00")
 			fmt.Printf("Filename: %s\n", filename)
+		}
+	}()
+
+	// Start the healthcheck HTTP endpoint
+	go func() {
+		http.HandleFunc("/healthz", healthHandler)
+
+		port := "3377"
+		log.Println("Health server running on localhost port " + port)
+		if err := http.ListenAndServe("localhost:"+port, nil); err != nil {
+			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
 
