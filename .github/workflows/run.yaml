@@ -8,9 +8,10 @@ jobs:
   run-ebpf-demo:
     runs-on: ubuntu-latest
     steps:
-      # Ubuntu 24.04 is not supporting BPF-LSM!
-      #- name: Check if BPF-LSM is available
-      #run: cat /boot/config-$(uname -r) | grep CONFIG_BPF_LSM && cat /sys/kernel/security/lsm
+    # Ubuntu 24.04 is not supporting BPF-LSM!
+    #- name: Check if BPF-LSM is available
+    #  run: cat /boot/config-$(uname -r) | grep CONFIG_BPF_LSM && cat /sys/kernel/security/lsm
+
     - name: Check out repository
       uses: actions/checkout@v4
 
@@ -20,13 +21,7 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Update action files with the new code
-      uses: dorkamotorka/goaction@master
-      with:
-        GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
-        image: dorkamotorka/ubuntu-ebpf
-        path: ./app
-
+    # Build a new container that will run our eBPF code
     - name: Build a new container
       uses: docker/build-push-action@v6
       with:
@@ -34,14 +29,16 @@ jobs:
         tags: dorkamotorka/ebpf-gh-action:latest
         push: true
 
+    # Run the container and capture the output to a tmp log file
     - name: Run container
       uses: addnab/docker-run-action@v3
       with:
           image: dorkamotorka/ebpf-gh-action:latest
           options: --detach --name ebpf-gh-action --privileged -v /sys/:/sys/ -v /tmp/:/tmp/ -v /etc/:/etc/ --pid=host --cgroupns=host -v /proc:/proc -v /boot:/boot
           run: |
-            /bin/action 2>&1 | tee /tmp/output.log # Capture the output and save to a log file
+            /bin/action 2>&1 | tee /tmp/output.log
 
+    # Container healthcheck
     - name: Wait container to come alive
       run: |
         echo -n "Waiting for container to start..."
@@ -61,10 +58,15 @@ jobs:
         whoami
         uname -a
 
-    # This data could be exported to some tool
+    # This data could be exported to some third-party endpoint
     # but for this example we only store it as an artifact
     - name: Upload eBPF logs as artifact
       uses: actions/upload-artifact@v4
       with:
         name: build-log
         path: /tmp/output.log
+
+    # For self-hosted runners we need to make sure to stop the containers explicitly
+    - name: Stop container
+      run: |
+        docker stop ebpf-gh-action
